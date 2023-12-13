@@ -41,7 +41,7 @@ pub async fn download_track(url: String) -> Result<TrackInfo, DownloadError> {
 
     if !track_info.downloadable {
         let res: Mp3Link = client
-            .get("https://api-v2.soundcloud.com/media/soundcloud:tracks:1007008426/c851067c-d685-49b3-8186-cd309246cac9/stream/progressive")
+            .get(&track_info.media.transcodings[0].url)
             .query(&[("client_id", CLIENT_ID)])
             .send()
             .await?

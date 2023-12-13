@@ -1,15 +1,7 @@
-#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
-
+use crate::types::TrackInfo;
 use std::fs;
 
-use futures_util::StreamExt;
-use types::TrackInfo;
-
-mod types;
-
-const CLIENT_ID: &str = "bX15WAb1KO8PbF0ZxzrtUNTgliPQqV55";
-const TRACK_INFO_URL: &str = "https://api-v2.soundcloud.com/resolve";
-const TRACK_DOWNLOAD_URL: &str = "https://api-v2.soundcloud.com/tracks";
+use crate::{CLIENT_ID, TRACK_INFO_URL};
 
 async fn get_track_info(url: String) -> Result<TrackInfo, reqwest::Error> {
     let client = reqwest::Client::new();
@@ -24,7 +16,6 @@ async fn get_track_info(url: String) -> Result<TrackInfo, reqwest::Error> {
     Ok(res)
 }
 
-#[tauri::command]
 async fn download_track(url: String) -> Result<(), String> {
     let track_info = match get_track_info(url).await {
         Ok(track_info) => track_info,
@@ -78,11 +69,4 @@ async fn download_track(url: String) -> Result<(), String> {
     fs::write("test.mp3", res).unwrap();
 
     Ok(())
-}
-
-fn main() {
-    tauri::Builder::default()
-        .invoke_handler(tauri::generate_handler![download_track])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
 }

@@ -52,7 +52,7 @@ pub async fn download_track(url: String) -> Result<TrackInfo, DownloadError> {
         let res = client.get(mp3_url).send().await?.bytes().await?;
 
         fs::write(
-            format!("{} - {}", track_info.user.username, track_info.title),
+            format!("{} - {}.mp3", track_info.user.username, track_info.title),
             res,
         )?;
         Ok(track_info)

@@ -1,3 +1,5 @@
+use std::fmt::Display;
+
 use serde::Deserialize;
 
 #[derive(Debug, Deserialize)]
@@ -34,4 +36,27 @@ pub struct Transcoding {
 pub struct TranscodingFormat {
     pub protocol: String,
     pub mime_type: String,
+}
+
+pub struct MetaDataField {
+    pub label: String,
+    pub value: String,
+}
+
+impl MetaDataField {
+    pub fn new(label: String, value: String) -> Self {
+        MetaDataField { label, value }
+    }
+}
+
+impl Display for MetaDataField {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.label.as_ref())?;
+
+        if self.value.len() > 0 {
+            f.write_str(format!(": {}", self.value).as_ref())?;
+        }
+
+        Ok(())
+    }
 }

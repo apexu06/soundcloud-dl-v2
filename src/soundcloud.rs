@@ -67,3 +67,11 @@ pub async fn download_track(url: String) -> Result<TrackInfo, DownloadError> {
         Ok(track_info)
     }
 }
+
+pub async fn get_track_cover<'a>(url: String) -> Result<&'a [u8], DownloadError> {
+    let client = reqwest::Client::new();
+    let res = client.get(url).send().await?.bytes().await?;
+
+    //Ok(res.to_vec().as_slice())
+    todo!()
+}

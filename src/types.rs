@@ -9,13 +9,18 @@ pub struct TrackInfo {
     pub title: String,
     pub kind: String,
     pub user: User,
-    pub media: Vec<Transcoding>,
+    pub media: Transcodings,
 }
 
 #[derive(Debug, Deserialize)]
 pub struct User {
     pub id: u32,
     pub username: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct Transcodings {
+    pub transcodings: Vec<Transcoding>,
 }
 
 #[derive(Debug, Deserialize)]

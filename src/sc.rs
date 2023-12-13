@@ -1,7 +1,17 @@
-use crate::types::TrackInfo;
 use std::fs;
 
+use crate::types::TrackInfo;
+use thiserror::Error;
+
 use crate::{CLIENT_ID, TRACK_INFO_URL};
+
+#[derive(Error, Debug)]
+pub enum DownloadError {
+    #[error("network error:\n{0}")]
+    Network(#[from] reqwest::Error),
+    #[error("could not write to file:\n{0}")]
+    File(#[from] std::io::Error),
+}
 
 async fn get_track_info(url: String) -> Result<TrackInfo, reqwest::Error> {
     let client = reqwest::Client::new();
@@ -16,57 +26,44 @@ async fn get_track_info(url: String) -> Result<TrackInfo, reqwest::Error> {
     Ok(res)
 }
 
-async fn download_track(url: String) -> Result<(), String> {
+pub async fn download_track(url: String) -> Result<TrackInfo, DownloadError> {
     let track_info = match get_track_info(url).await {
         Ok(track_info) => track_info,
-        Err(_) => return Err("Failed to get track info".to_string()),
+        Err(err) => return Err(DownloadError::Network(err)),
     };
 
-    println!("{:?}", track_info.title);
-
-    // if !track_info.downloadable {
-    //     return Err("Track is not downloadable".to_string());
-    // }
-
     let client = reqwest::Client::new();
-    // let res = client
-    //     .get(format!("{}/{}/download", TRACK_DOWNLOAD_URL, track_info.id))
-    //     .query(&[("client_id", CLIENT_ID)])
-    //     .send()
-    //     .await
-    //     .map_err(|_| "Failed to download track".to_string())?;
-    //
-    //
 
-    #[derive(serde::Deserialize, Debug)]
-    struct Test {
+    #[derive(serde::Deserialize)]
+    struct Mp3Link {
         url: String,
     }
 
-    let res: Test = client
-        .get("https://api-v2.soundcloud.com/media/soundcloud:tracks:1007008426/c851067c-d685-49b3-8186-cd309246cac9/stream/progressive")
-        .query(&[("client_id", CLIENT_ID)])
-        .send()
-        .await.map_err(|_| "fail")?
-        .json()
-        .await.map_err(|_| "fail")?;
+    if !track_info.downloadable {
+        let res: Mp3Link = client
+            .get("https://api-v2.soundcloud.com/media/soundcloud:tracks:1007008426/c851067c-d685-49b3-8186-cd309246cac9/stream/progressive")
+            .query(&[("client_id", CLIENT_ID)])
+            .send()
+            .await?
+            .json()
+            .await?;
 
-    let mp3_url = res.url;
+        let mp3_url = res.url;
+        let res = client.get(mp3_url).send().await?.bytes().await?;
 
-    println!("{:?}", mp3_url);
+        fs::write(
+            format!("{} - {}", track_info.user.username, track_info.title),
+            res,
+        )?;
+        Ok(track_info)
+    } else {
+        // let res = client
+        //     .get(format!("{}/{}/download", TRACK_DOWNLOAD_URL, track_info.id))
+        //     .query(&[("client_id", CLIENT_ID)])
+        //     .send()
+        //     .await
+        //     .map_err(|_| "Failed to download track".to_string())?;
 
-    let res = client
-        .get(mp3_url)
-        .send()
-        .await
-        .map_err(|_| "fail")?
-        .bytes()
-        .await
-        .map_err(|_| "fail")?;
-
-    println!("{:?}", res);
-
-    fs::write("test.mp3", res).unwrap();
-
-    Ok(())
+        Ok(track_info)
+    }
 }

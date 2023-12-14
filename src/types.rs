@@ -38,15 +38,17 @@ pub struct TranscodingFormat {
     pub mime_type: String,
 }
 
+pub struct Metadata {
+    pub title: Option<String>,
+    pub artist: Option<String>,
+    pub genre: Option<String>,
+    pub album_name: Option<String>,
+    pub album_art: Vec<u8>,
+}
+
 pub struct MetaDataField {
     pub label: String,
     pub value: String,
-}
-
-impl MetaDataField {
-    pub fn new(label: String, value: String) -> Self {
-        MetaDataField { label, value }
-    }
 }
 
 impl Display for MetaDataField {

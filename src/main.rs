@@ -1,8 +1,16 @@
-use std::{time::Duration, vec};
+use std::{
+    fs::{self, OpenOptions},
+    time::Duration,
+    vec,
+};
 
-use audiotags::Tag;
 use console::Term;
 use dialoguer::{theme::ColorfulTheme, Input, MultiSelect};
+use id3::{
+    frame,
+    v1v2::{read_from_path, write_to_file},
+    ErrorKind, Tag, TagLike,
+};
 use indicatif::ProgressBar;
 use regex::Regex;
 use soundcloud::download_track;
@@ -26,21 +34,29 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     spinner.set_message("downloading...");
     spinner.enable_steady_tick(Duration::from_millis(50));
 
-    let track_info = download_track(url).await?;
+    let metadata = download_track(url).await?;
     spinner.finish_with_message("finished download!");
 
-    let mut fields = vec![
-        MetaDataField::new("title".to_string(), track_info.title.clone()),
-        MetaDataField::new("artist".to_string(), track_info.user.username.clone()),
-        MetaDataField::new("album".to_string(), "".to_string()),
+    let mut tag = Tag::new();
+    tag.set_title(&metadata.title.value);
+    tag.set_artist(&metadata.artist.value);
+    tag.set_album(&metadata.album_name.value);
+    tag.set_genre(&metadata.genre.value);
+    tag.add_frame(frame::Picture {
+        mime_type: "image/jpeg".to_string(),
+        picture_type: frame::PictureType::CoverFront,
+        description: "Cover".to_string(),
+        data: metadata.album_art,
+    });
+
+    let fields = &vec![
+        metadata.title,
+        metadata.artist,
+        metadata.genre,
+        metadata.album_name,
     ];
 
-    let selected = prompt_metadata(&fields)?;
-
-    let mut tag = Tag::new().read_from_path(format!(
-        "{} - {}.mp3",
-        track_info.user.username, track_info.title
-    ))?;
+    let selected = prompt_metadata(fields)?;
 
     for index in selected {
         fields[index].value = prompt_field(&fields[index].label)?;
@@ -48,15 +64,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         match fields[index].label.as_ref() {
             "title" => tag.set_title(&fields[index].value),
             "artist" => tag.set_artist(&fields[index].value),
-            "album" => tag.set_album_title(&fields[index].value),
+            "album" => tag.set_album(&fields[index].value),
+            "genre" => tag.set_genre(&fields[index].value),
             &_ => {}
         }
     }
 
-    tag.write_to_path(&format!(
-        "{} - {}.mp3",
-        track_info.user.username, track_info.title
-    ))?;
+    tag.write_to_path(&format!("{}.mp3", &metadata.title), id3::Version::Id3v24)?;
 
     Ok(())
 }

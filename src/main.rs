@@ -1,30 +1,69 @@
 use std::{time::Duration, vec};
 
+use clap::Parser;
 use console::Term;
 use dialoguer::{theme::ColorfulTheme, Input, MultiSelect};
 use id3::{frame, Tag, TagLike};
 use indicatif::ProgressBar;
 use regex::Regex;
-use soundcloud::download_track;
-use types::{FieldLabel, MetadataField};
+use soundcloud::{download_track, DownloadError};
+use types::{FieldLabel, Metadata, MetadataField};
 
 mod soundcloud;
 mod types;
 
+/// cli tool to download soundcloud tracks
+#[derive(Parser, Debug)]
+#[command(author, version, about, long_about = None)]
+struct Args {
+    /// soundcloud url to download (skips metadata options)
+    #[arg(short, long)]
+    url: Option<String>,
+
+    /// directory to download tracks to
+    #[arg(short, long)]
+    download_directory: Option<String>,
+
+    /// show current download directory
+    #[arg(short, long)]
+    show_download_directory: bool,
+
+    /// use default metadata
+    #[arg(short = 'U', long)]
+    use_default_metadata: bool,
+}
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let term = Term::stdout();
-    term.clear_screen()?;
-    term.set_title("soundcloud");
+    let args = Args::parse();
 
-    let url = prompt_url()?;
+    if let Some(url) = args.url {
+        let metadata = download(url).await?;
+        if !args.use_default_metadata {
+            term.clear_screen()?;
+            apply_metadata(metadata)?;
+        }
+    } else {
+        term.clear_screen()?;
+        let metadata = download(prompt_url()?).await?;
+        apply_metadata(metadata)?;
+    }
+
+    println!("finished!");
+
+    Ok(())
+}
+
+async fn download(url: String) -> Result<types::Metadata, DownloadError> {
     let spinner = ProgressBar::new_spinner();
     spinner.set_message("downloading...");
     spinner.enable_steady_tick(Duration::from_millis(50));
 
-    let metadata = download_track(url).await?;
-    spinner.finish_with_message("finished download!");
+    Ok(download_track(url).await?)
+}
 
+fn apply_metadata(metadata: Metadata) -> Result<(), Box<dyn std::error::Error>> {
     let fields = vec![
         metadata.title,
         metadata.artist,
@@ -57,9 +96,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
     tag.write_to_path(format!("{}.mp3", &fields[0].value), id3::Version::Id3v24)?;
-
-    println!("finished!");
-
     Ok(())
 }
 

@@ -5,7 +5,6 @@ use thiserror::Error;
 
 const CLIENT_ID: &str = "bX15WAb1KO8PbF0ZxzrtUNTgliPQqV55";
 const TRACK_INFO_URL: &str = "https://api-v2.soundcloud.com/resolve";
-const TRACK_DOWNLOAD_URL: &str = "https://api-v2.soundcloud.com/tracks";
 
 #[derive(Error, Debug)]
 pub enum DownloadError {

@@ -939,6 +939,23 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f98d2aa92eebf49b69786be48e4477826b256916e84a57ff2a4f21923b48eb4c"
 
 [[package]]
+name = "scdl"
+version = "0.1.0"
+dependencies = [
+ "clap",
+ "console",
+ "dialoguer",
+ "directories",
+ "id3",
+ "indicatif",
+ "regex",
+ "reqwest",
+ "serde",
+ "thiserror",
+ "tokio",
+]
+
+[[package]]
 name = "schannel"
 version = "0.1.22"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1067,23 +1084,6 @@ checksum = "7b5fac59a5cb5dd637972e5fca70daf0523c9067fcdc4842f053dae04a18f8e9"
 dependencies = [
  "libc",
  "windows-sys 0.48.0",
-]
-
-[[package]]
-name = "soundcloud-dl-v2"
-version = "0.1.0"
-dependencies = [
- "clap",
- "console",
- "dialoguer",
- "directories",
- "id3",
- "indicatif",
- "regex",
- "reqwest",
- "serde",
- "thiserror",
- "tokio",
 ]
 
 [[package]]

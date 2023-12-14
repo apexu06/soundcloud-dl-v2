@@ -1,5 +1,5 @@
 [package]
-name = "soundcloud-dl-v2"
+name = "scdl"
 version = "0.1.0"
 edition = "2021"
 

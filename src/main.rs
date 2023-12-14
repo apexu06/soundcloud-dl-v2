@@ -1,27 +1,15 @@
-use std::{
-    fs::{self, OpenOptions},
-    time::Duration,
-    vec,
-};
+use std::{time::Duration, vec};
 
 use console::Term;
 use dialoguer::{theme::ColorfulTheme, Input, MultiSelect};
-use id3::{
-    frame,
-    v1v2::{read_from_path, write_to_file},
-    ErrorKind, Tag, TagLike,
-};
+use id3::{frame, Tag, TagLike};
 use indicatif::ProgressBar;
 use regex::Regex;
 use soundcloud::download_track;
-use types::MetaDataField;
+use types::{FieldLabel, MetadataField};
 
 mod soundcloud;
 mod types;
-
-pub const CLIENT_ID: &str = "bX15WAb1KO8PbF0ZxzrtUNTgliPQqV55";
-pub const TRACK_INFO_URL: &str = "https://api-v2.soundcloud.com/resolve";
-pub const TRACK_DOWNLOAD_URL: &str = "https://api-v2.soundcloud.com/tracks";
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -37,11 +25,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let metadata = download_track(url).await?;
     spinner.finish_with_message("finished download!");
 
+    let fields = vec![
+        metadata.title,
+        metadata.artist,
+        metadata.album_name,
+        metadata.genre,
+    ];
+
     let mut tag = Tag::new();
-    tag.set_title(&metadata.title.value);
-    tag.set_artist(&metadata.artist.value);
-    tag.set_album(&metadata.album_name.value);
-    tag.set_genre(&metadata.genre.value);
+    tag.set_title(&fields[0].value);
+    tag.set_artist(&fields[1].value);
+    tag.set_album(&fields[2].value);
+    tag.set_genre(&fields[3].value);
     tag.add_frame(frame::Picture {
         mime_type: "image/jpeg".to_string(),
         picture_type: frame::PictureType::CoverFront,
@@ -49,34 +44,27 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         data: metadata.album_art,
     });
 
-    let fields = &vec![
-        metadata.title,
-        metadata.artist,
-        metadata.genre,
-        metadata.album_name,
-    ];
-
-    let selected = prompt_metadata(fields)?;
+    let selected = prompt_metadata(&fields)?;
 
     for index in selected {
-        fields[index].value = prompt_field(&fields[index].label)?;
+        let value = prompt_field(&fields[index])?;
 
-        match fields[index].label.as_ref() {
-            "title" => tag.set_title(&fields[index].value),
-            "artist" => tag.set_artist(&fields[index].value),
-            "album" => tag.set_album(&fields[index].value),
-            "genre" => tag.set_genre(&fields[index].value),
-            &_ => {}
+        match &fields[index].label {
+            FieldLabel::Title => tag.set_title(&value),
+            FieldLabel::Artist => tag.set_artist(&value),
+            FieldLabel::Album => tag.set_album(&value),
+            FieldLabel::Genre => tag.set_genre(&value),
         }
     }
+    tag.write_to_path(format!("{}.mp3", &fields[0].value), id3::Version::Id3v24)?;
 
-    tag.write_to_path(&format!("{}.mp3", &metadata.title), id3::Version::Id3v24)?;
+    println!("finished!");
 
     Ok(())
 }
 
 fn prompt_url() -> Result<String, dialoguer::Error> {
-    let re = Regex::new("https://soundcloud.com/.*/.*").unwrap();
+    let re = Regex::new("https://soundcloud.com/.*/.*").expect("invalid regex");
 
     let url = Input::with_theme(&ColorfulTheme::default())
         .with_prompt("enter SoundCloud URL")
@@ -92,18 +80,20 @@ fn prompt_url() -> Result<String, dialoguer::Error> {
     Ok(url)
 }
 
-fn prompt_metadata(items: &Vec<MetaDataField>) -> Result<Vec<usize>, dialoguer::Error> {
+fn prompt_metadata(items: &Vec<MetadataField>) -> Result<Vec<usize>, dialoguer::Error> {
     let selection = MultiSelect::with_theme(&ColorfulTheme::default())
         .with_prompt("choose which fields you want to change\n  (space: select / enter: continue):")
-        .items(&items)
+        .items(items)
         .interact()?;
 
     Ok(selection)
 }
 
-fn prompt_field(field: &String) -> Result<String, dialoguer::Error> {
+fn prompt_field(field: &MetadataField) -> Result<String, dialoguer::Error> {
     let updated: String = Input::with_theme(&ColorfulTheme::default())
-        .with_prompt(format!("new {field}"))
+        .with_prompt(format!("new {}", field.label))
+        .show_default(false)
+        .default(field.value.clone())
         .interact_text()?;
 
     Ok(updated)

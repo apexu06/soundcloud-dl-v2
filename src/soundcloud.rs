@@ -1,9 +1,11 @@
 use std::fs;
 
-use crate::types::{MetaDataField, Metadata, TrackInfo};
+use crate::types::{FieldLabel, Metadata, MetadataField, TrackInfo};
 use thiserror::Error;
 
-use crate::{CLIENT_ID, TRACK_INFO_URL};
+const CLIENT_ID: &str = "bX15WAb1KO8PbF0ZxzrtUNTgliPQqV55";
+const TRACK_INFO_URL: &str = "https://api-v2.soundcloud.com/resolve";
+const TRACK_DOWNLOAD_URL: &str = "https://api-v2.soundcloud.com/tracks";
 
 #[derive(Error, Debug)]
 pub enum DownloadError {
@@ -38,23 +40,22 @@ pub async fn download_track(url: String) -> Result<Metadata, DownloadError> {
     };
 
     let metadata = Metadata {
-        title: MetaDataField {
-            label: "title".to_string(),
+        title: MetadataField {
+            label: FieldLabel::Title,
             value: track_info.title,
         },
-        artist: MetaDataField {
-            label: "artist".to_string(),
+        artist: MetadataField {
+            label: FieldLabel::Artist,
             value: track_info.user.username,
         },
-        genre: MetaDataField {
-            label: "genre".to_string(),
+        genre: MetadataField {
+            label: FieldLabel::Genre,
             value: track_info.genre,
         },
-        album_name: MetaDataField {
-            label: "album".to_string(),
-            value: "".to_string(),
+        album_name: MetadataField {
+            label: FieldLabel::Album,
+            value: String::new(),
         },
-
         album_art: album_cover,
     };
 
@@ -65,30 +66,19 @@ pub async fn download_track(url: String) -> Result<Metadata, DownloadError> {
         url: String,
     }
 
-    if !track_info.downloadable {
-        let res: Mp3Link = client
-            .get(&track_info.media.transcodings[1].url)
-            .query(&[("client_id", CLIENT_ID)])
-            .send()
-            .await?
-            .json()
-            .await?;
+    let res: Mp3Link = client
+        .get(&track_info.media.transcodings[1].url)
+        .query(&[("client_id", CLIENT_ID)])
+        .send()
+        .await?
+        .json()
+        .await?;
 
-        let mp3_url = res.url;
-        let res = client.get(mp3_url).send().await?.bytes().await?;
+    let mp3_url = res.url;
+    let res = client.get(mp3_url).send().await?.bytes().await?;
 
-        fs::write(format!("{}.mp3", metadata.title), res)?;
-        Ok(metadata)
-    } else {
-        // let res = client
-        //     .get(format!("{}/{}/download", TRACK_DOWNLOAD_URL, track_info.id))
-        //     .query(&[("client_id", CLIENT_ID)])
-        //     .send()
-        //     .await
-        //     .map_err(|_| "Failed to download track".to_string())?;
-
-        Ok(metadata)
-    }
+    fs::write(format!("{}.mp3", metadata.title.value), res)?;
+    Ok(metadata)
 }
 
 pub async fn get_track_cover(url: String) -> Result<Vec<u8>, reqwest::Error> {

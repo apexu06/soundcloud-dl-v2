@@ -1,8 +1,9 @@
-use std::{time::Duration, vec};
+use std::{path::PathBuf, time::Duration, vec};
 
 use clap::Parser;
 use console::Term;
 use dialoguer::{theme::ColorfulTheme, Input, MultiSelect};
+use directories::UserDirs;
 use id3::{frame, Tag, TagLike};
 use indicatif::ProgressBar;
 use regex::Regex;
@@ -20,23 +21,34 @@ struct Args {
     #[arg(short, long)]
     url: Option<String>,
 
-    /// directory to download tracks to
+    /// specify download directory
     #[arg(short, long)]
-    download_directory: Option<String>,
-
-    /// show current download directory
-    #[arg(short, long)]
-    show_download_directory: bool,
+    download_directory: Option<PathBuf>,
 
     /// use default metadata
     #[arg(short = 'U', long)]
     use_default_metadata: bool,
 }
 
+fn get_default_dir() -> PathBuf {
+    let working_dir = PathBuf::new();
+    if let Some(dir) = UserDirs::new() {
+        dir.audio_dir().unwrap_or(&working_dir).to_path_buf()
+    } else {
+        working_dir
+    }
+}
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let term = Term::stdout();
     let args = Args::parse();
+
+    if let Some(dir) = args.download_directory {
+        std::env::set_current_dir(dir)?;
+    } else {
+        std::env::set_current_dir(get_default_dir())?;
+    }
 
     if let Some(url) = args.url {
         let metadata = download(url).await?;
@@ -95,7 +107,10 @@ fn apply_metadata(metadata: Metadata) -> Result<(), Box<dyn std::error::Error>> 
             FieldLabel::Genre => tag.set_genre(&value),
         }
     }
-    tag.write_to_path(format!("{}.mp3", &fields[0].value), id3::Version::Id3v24)?;
+
+    let mut path = std::env::current_dir()?;
+    path.push(format!("{}.mp3", &fields[0].value));
+    tag.write_to_path(path, id3::Version::Id3v24)?;
     Ok(())
 }
 

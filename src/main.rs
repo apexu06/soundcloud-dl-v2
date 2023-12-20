@@ -44,7 +44,7 @@ struct Args {
 }
 
 fn get_default_dir() -> PathBuf {
-    let working_dir = PathBuf::new();
+    let working_dir = std::env::current_dir().unwrap_or(PathBuf::new());
     if let Some(dir) = UserDirs::new() {
         dir.audio_dir().unwrap_or(&working_dir).to_path_buf()
     } else {
@@ -69,59 +69,79 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     let default_metadata = download(url).await?;
-    FILENAME.get_or_init(|| format!("{}.mp3", &default_metadata.title));
-    let tag = create_default_tag(default_metadata);
+    FILENAME.get_or_init(|| format!("{}.mp3", &default_metadata.title.value));
 
-    let mut parameter_fields: Vec<MetadataField> = Vec::new();
+    let mut default_fields: Vec<MetadataField> = Vec::new();
+    let mut param_fields: Vec<MetadataField> = Vec::new();
 
     if let Some(title) = args.songname {
-        parameter_fields.push(MetadataField {
+        param_fields.push(MetadataField {
             label: FieldLabel::Title,
             value: title,
+        })
+    } else {
+        default_fields.push(MetadataField {
+            label: FieldLabel::Title,
+            value: default_metadata.title.value,
         });
     }
 
     if let Some(artist) = args.artist {
-        parameter_fields.push(MetadataField {
+        param_fields.push(MetadataField {
             label: FieldLabel::Artist,
             value: artist,
+        });
+    } else {
+        default_fields.push(MetadataField {
+            label: FieldLabel::Artist,
+            value: default_metadata.artist.value,
         });
     }
 
     if let Some(genre) = args.genre {
-        parameter_fields.push(MetadataField {
+        param_fields.push(MetadataField {
             label: FieldLabel::Genre,
             value: genre,
+        });
+    } else {
+        default_fields.push(MetadataField {
+            label: FieldLabel::Genre,
+            value: default_metadata.genre.value,
         });
     }
 
     if let Some(album) = args.album {
-        parameter_fields.push(MetadataField {
+        param_fields.push(MetadataField {
             label: FieldLabel::Album,
             value: album,
         });
+    } else {
+        default_fields.push(MetadataField {
+            label: FieldLabel::Album,
+            value: default_metadata.album_name.value,
+        });
     }
 
-    apply_metadata(parameter_fields, tag)?;
+    let tag = create_base_tag(param_fields);
+    apply_metadata(default_fields, tag)?;
 
     println!("finished!");
 
     Ok(())
 }
 
-fn create_default_tag(metadata: Metadata) -> id3::Tag {
+fn create_base_tag(metadata: Vec<MetadataField>) -> id3::Tag {
     let mut tag = id3::Tag::new();
 
-    tag.set_title(metadata.title.value);
-    tag.set_artist(metadata.artist.value);
-    tag.set_album(metadata.album_name.value);
-    tag.set_genre(metadata.genre.value);
-    tag.add_frame(frame::Picture {
-        mime_type: "image/jpeg".to_string(),
-        picture_type: frame::PictureType::CoverFront,
-        description: "Cover".to_string(),
-        data: metadata.album_art,
-    });
+    for field in metadata {
+        match field.label {
+            FieldLabel::Title => tag.set_title(field.value),
+            FieldLabel::Artist => tag.set_artist(field.value),
+            FieldLabel::Genre => tag.set_genre(field.value),
+            FieldLabel::Album => tag.set_album(field.value),
+        }
+    }
+
     tag
 }
 
@@ -143,10 +163,9 @@ fn apply_metadata(
     }
 
     let mut path = std::env::current_dir()?;
-    path.push(format!(
-        "{}.mp3",
-        FILENAME.get().unwrap_or(&"soundcloud".to_string())
-    ));
+    path.push(FILENAME.get().unwrap_or(&"soundcloud.mp3".to_string()));
+
+    println!("{:?}", path);
     tag.write_to_path(path, id3::Version::Id3v24)?;
     Ok(())
 }

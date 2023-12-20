@@ -48,7 +48,7 @@ struct Args {
 }
 
 fn get_default_dir() -> PathBuf {
-    let working_dir = std::env::current_dir().unwrap_or_default();
+    let working_dir = std::env::current_dir().unwrap_or(PathBuf::new());
     if let Some(dir) = UserDirs::new() {
         dir.audio_dir().unwrap_or(&working_dir).to_path_buf()
     } else {
@@ -73,7 +73,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     let default_metadata = download(url).await?;
-    FILENAME.get_or_init(|| format!("{}.mp3", &default_metadata.title.value));
+    FILENAME.get_or_init(|| format!("{}.mp3", &default_metadata.title.value.replace('/', "")));
 
     let mut default_fields: Vec<MetadataField> = Vec::new();
     let mut param_fields: Vec<MetadataField> = Vec::new();

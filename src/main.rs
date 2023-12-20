@@ -1,10 +1,9 @@
-use std::{path::PathBuf, time::Duration, vec};
+use std::{path::PathBuf, sync::OnceLock, time::Duration};
 
 use clap::Parser;
-use console::Term;
 use dialoguer::{theme::ColorfulTheme, Input, MultiSelect};
 use directories::UserDirs;
-use id3::{frame, Tag, TagLike};
+use id3::{frame, TagLike};
 use indicatif::ProgressBar;
 use regex::Regex;
 use soundcloud::{download_track, DownloadError};
@@ -13,6 +12,8 @@ use types::{FieldLabel, Metadata, MetadataField};
 mod soundcloud;
 mod types;
 
+pub static FILENAME: OnceLock<String> = OnceLock::new();
+
 /// cli tool to download soundcloud tracks
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -20,6 +21,18 @@ struct Args {
     /// soundcloud url to download (skips metadata options)
     #[arg(short, long)]
     url: Option<String>,
+
+    #[arg(short, long)]
+    songname: Option<String>,
+
+    #[arg(short, long)]
+    artist: Option<String>,
+
+    #[arg(short = 'A', long)]
+    album: Option<String>,
+
+    #[arg(short, long)]
+    genre: Option<String>,
 
     /// specify download directory
     #[arg(short, long)]
@@ -41,7 +54,6 @@ fn get_default_dir() -> PathBuf {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let term = Term::stdout();
     let args = Args::parse();
 
     if let Some(dir) = args.download_directory {
@@ -50,57 +62,79 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         std::env::set_current_dir(get_default_dir())?;
     }
 
-    if let Some(url) = args.url {
-        let metadata = download(url).await?;
-        if !args.use_default_metadata {
-            term.clear_screen()?;
-            apply_metadata(metadata)?;
-        }
+    let url = if let Some(url) = args.url {
+        url
     } else {
-        term.clear_screen()?;
-        let metadata = download(prompt_url()?).await?;
-        apply_metadata(metadata)?;
+        prompt_url()?
+    };
+
+    let default_metadata = download(url).await?;
+    FILENAME.get_or_init(|| format!("{}.mp3", &default_metadata.title));
+    let tag = create_default_tag(default_metadata);
+
+    let mut parameter_fields: Vec<MetadataField> = Vec::new();
+
+    if let Some(title) = args.songname {
+        parameter_fields.push(MetadataField {
+            label: FieldLabel::Title,
+            value: title,
+        });
     }
+
+    if let Some(artist) = args.artist {
+        parameter_fields.push(MetadataField {
+            label: FieldLabel::Artist,
+            value: artist,
+        });
+    }
+
+    if let Some(genre) = args.genre {
+        parameter_fields.push(MetadataField {
+            label: FieldLabel::Genre,
+            value: genre,
+        });
+    }
+
+    if let Some(album) = args.album {
+        parameter_fields.push(MetadataField {
+            label: FieldLabel::Album,
+            value: album,
+        });
+    }
+
+    apply_metadata(parameter_fields, tag)?;
 
     println!("finished!");
 
     Ok(())
 }
 
-async fn download(url: String) -> Result<types::Metadata, DownloadError> {
-    let spinner = ProgressBar::new_spinner();
-    spinner.set_message("downloading...");
-    spinner.enable_steady_tick(Duration::from_millis(50));
+fn create_default_tag(metadata: Metadata) -> id3::Tag {
+    let mut tag = id3::Tag::new();
 
-    Ok(download_track(url).await?)
-}
-
-fn apply_metadata(metadata: Metadata) -> Result<(), Box<dyn std::error::Error>> {
-    let fields = vec![
-        metadata.title,
-        metadata.artist,
-        metadata.album_name,
-        metadata.genre,
-    ];
-
-    let mut tag = Tag::new();
-    tag.set_title(&fields[0].value);
-    tag.set_artist(&fields[1].value);
-    tag.set_album(&fields[2].value);
-    tag.set_genre(&fields[3].value);
+    tag.set_title(metadata.title.value);
+    tag.set_artist(metadata.artist.value);
+    tag.set_album(metadata.album_name.value);
+    tag.set_genre(metadata.genre.value);
     tag.add_frame(frame::Picture {
         mime_type: "image/jpeg".to_string(),
         picture_type: frame::PictureType::CoverFront,
         description: "Cover".to_string(),
         data: metadata.album_art,
     });
+    tag
+}
 
-    let selected = prompt_metadata(&fields)?;
+fn apply_metadata(
+    metadata_fields: Vec<MetadataField>,
+    mut tag: id3::Tag,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let selected = prompt_metadata(&metadata_fields)?;
 
     for index in selected {
-        let value = prompt_field(&fields[index])?;
+        let value = prompt_field(&metadata_fields[index])?;
 
-        match &fields[index].label {
+        match &metadata_fields[index].label {
             FieldLabel::Title => tag.set_title(&value),
             FieldLabel::Artist => tag.set_artist(&value),
             FieldLabel::Album => tag.set_album(&value),
@@ -109,7 +143,10 @@ fn apply_metadata(metadata: Metadata) -> Result<(), Box<dyn std::error::Error>> 
     }
 
     let mut path = std::env::current_dir()?;
-    path.push(format!("{}.mp3", &fields[0].value));
+    path.push(format!(
+        "{}.mp3",
+        FILENAME.get().unwrap_or(&"soundcloud".to_string())
+    ));
     tag.write_to_path(path, id3::Version::Id3v24)?;
     Ok(())
 }
@@ -148,4 +185,12 @@ fn prompt_field(field: &MetadataField) -> Result<String, dialoguer::Error> {
         .interact_text()?;
 
     Ok(updated)
+}
+
+async fn download(url: String) -> Result<types::Metadata, DownloadError> {
+    let spinner = ProgressBar::new_spinner();
+    spinner.set_message("downloading...");
+    spinner.enable_steady_tick(Duration::from_millis(50));
+
+    Ok(download_track(url).await?)
 }

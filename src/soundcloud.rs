@@ -1,6 +1,9 @@
 use std::fs;
 
-use crate::types::{FieldLabel, Metadata, MetadataField, TrackInfo};
+use crate::{
+    types::{FieldLabel, Metadata, MetadataField, TrackInfo},
+    FILENAME,
+};
 use thiserror::Error;
 
 const CLIENT_ID: &str = "bX15WAb1KO8PbF0ZxzrtUNTgliPQqV55";
@@ -77,7 +80,10 @@ pub async fn download_track(url: String) -> Result<Metadata, DownloadError> {
     let res = client.get(mp3_url).send().await?.bytes().await?;
 
     let mut path = std::env::current_dir().unwrap();
-    path.push(format!("{}.mp3", metadata.title.value));
+    path.push(format!(
+        "{}.mp3",
+        FILENAME.get().unwrap_or(&"soundcloud".to_string())
+    ));
 
     fs::write(path, res)?;
     Ok(metadata)

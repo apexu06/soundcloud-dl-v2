@@ -3,16 +3,16 @@ use std::{path::PathBuf, sync::OnceLock, time::Duration};
 use clap::Parser;
 use dialoguer::{theme::ColorfulTheme, Input, MultiSelect};
 use directories::UserDirs;
-use id3::{frame, TagLike};
+use id3::TagLike;
 use indicatif::ProgressBar;
 use regex::Regex;
 use soundcloud::{download_track, DownloadError};
-use types::{FieldLabel, Metadata, MetadataField};
+use types::{FieldLabel, MetadataField};
 
 mod soundcloud;
 mod types;
 
-pub static FILENAME: OnceLock<String> = OnceLock::new();
+static FILENAME: OnceLock<String> = OnceLock::new();
 
 /// cli tool to download soundcloud tracks
 #[derive(Parser, Debug)]
@@ -22,15 +22,19 @@ struct Args {
     #[arg(short, long)]
     url: Option<String>,
 
+    /// song name
     #[arg(short, long)]
     songname: Option<String>,
 
+    /// artist name
     #[arg(short, long)]
     artist: Option<String>,
 
+    /// album name
     #[arg(short = 'A', long)]
     album: Option<String>,
 
+    /// genre name
     #[arg(short, long)]
     genre: Option<String>,
 
@@ -44,7 +48,7 @@ struct Args {
 }
 
 fn get_default_dir() -> PathBuf {
-    let working_dir = std::env::current_dir().unwrap_or(PathBuf::new());
+    let working_dir = std::env::current_dir().unwrap_or_default();
     if let Some(dir) = UserDirs::new() {
         dir.audio_dir().unwrap_or(&working_dir).to_path_buf()
     } else {
@@ -120,27 +124,37 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             label: FieldLabel::Album,
             value: default_metadata.album_name.value,
         });
-    }
+    };
 
-    let tag = create_base_tag(param_fields);
+    let tag = create_base_tag(&default_fields, &param_fields);
     apply_metadata(default_fields, tag)?;
 
-    println!("finished!");
+    let mut location = std::env::current_dir()?;
+    location.push(FILENAME.get().unwrap_or(&"soundcloud.mp3".to_string()));
+    println!("finished: {}", location.display());
 
     Ok(())
 }
 
-fn create_base_tag(metadata: Vec<MetadataField>) -> id3::Tag {
+fn create_base_tag(
+    default_metadata: &[MetadataField],
+    param_metadata: &[MetadataField],
+) -> id3::Tag {
     let mut tag = id3::Tag::new();
 
-    for field in metadata {
-        match field.label {
-            FieldLabel::Title => tag.set_title(field.value),
-            FieldLabel::Artist => tag.set_artist(field.value),
-            FieldLabel::Genre => tag.set_genre(field.value),
-            FieldLabel::Album => tag.set_album(field.value),
-        }
-    }
+    default_metadata.iter().for_each(|field| match field.label {
+        FieldLabel::Title => tag.set_title(field.value.as_str()),
+        FieldLabel::Artist => tag.set_artist(field.value.as_str()),
+        FieldLabel::Genre => tag.set_genre(field.value.as_str()),
+        FieldLabel::Album => tag.set_album(field.value.as_str()),
+    });
+
+    param_metadata.iter().for_each(|field| match field.label {
+        FieldLabel::Title => tag.set_title(field.value.as_str()),
+        FieldLabel::Artist => tag.set_artist(field.value.as_str()),
+        FieldLabel::Genre => tag.set_genre(field.value.as_str()),
+        FieldLabel::Album => tag.set_album(field.value.as_str()),
+    });
 
     tag
 }
@@ -149,23 +163,24 @@ fn apply_metadata(
     metadata_fields: Vec<MetadataField>,
     mut tag: id3::Tag,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let selected = prompt_metadata(&metadata_fields)?;
+    if !metadata_fields.is_empty() {
+        let selected = prompt_metadata(&metadata_fields)?;
 
-    for index in selected {
-        let value = prompt_field(&metadata_fields[index])?;
+        for index in selected {
+            let value = prompt_field(&metadata_fields[index])?;
 
-        match &metadata_fields[index].label {
-            FieldLabel::Title => tag.set_title(&value),
-            FieldLabel::Artist => tag.set_artist(&value),
-            FieldLabel::Album => tag.set_album(&value),
-            FieldLabel::Genre => tag.set_genre(&value),
+            match &metadata_fields[index].label {
+                FieldLabel::Title => tag.set_title(&value),
+                FieldLabel::Artist => tag.set_artist(&value),
+                FieldLabel::Album => tag.set_album(&value),
+                FieldLabel::Genre => tag.set_genre(&value),
+            }
         }
     }
 
     let mut path = std::env::current_dir()?;
     path.push(FILENAME.get().unwrap_or(&"soundcloud.mp3".to_string()));
 
-    println!("{:?}", path);
     tag.write_to_path(path, id3::Version::Id3v24)?;
     Ok(())
 }
@@ -187,7 +202,7 @@ fn prompt_url() -> Result<String, dialoguer::Error> {
     Ok(url)
 }
 
-fn prompt_metadata(items: &Vec<MetadataField>) -> Result<Vec<usize>, dialoguer::Error> {
+fn prompt_metadata(items: &[MetadataField]) -> Result<Vec<usize>, dialoguer::Error> {
     let selection = MultiSelect::with_theme(&ColorfulTheme::default())
         .with_prompt("choose which fields you want to change\n  (space: select / enter: continue):")
         .items(items)
@@ -211,5 +226,5 @@ async fn download(url: String) -> Result<types::Metadata, DownloadError> {
     spinner.set_message("downloading...");
     spinner.enable_steady_tick(Duration::from_millis(50));
 
-    Ok(download_track(url).await?)
+    download_track(url).await
 }

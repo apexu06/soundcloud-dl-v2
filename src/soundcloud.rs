@@ -1,9 +1,6 @@
-use std::{fs, path::PathBuf};
+use std::fs;
 
-use crate::{
-    types::{FieldLabel, Metadata, MetadataField, TrackInfo},
-    FILENAME,
-};
+use crate::types::{FieldLabel, Metadata, MetadataField, TrackInfo};
 use thiserror::Error;
 
 const CLIENT_ID: &str = "bX15WAb1KO8PbF0ZxzrtUNTgliPQqV55";
@@ -79,7 +76,7 @@ pub async fn download_track(url: String) -> Result<Metadata, DownloadError> {
     let mp3_url = res.url;
     let res = client.get(mp3_url).send().await?.bytes().await?;
 
-    let mut path = std::env::current_dir().unwrap_or(PathBuf::new());
+    let mut path = std::env::current_dir().unwrap_or_default();
     path.push(format!("{}.mp3", metadata.title.value));
 
     fs::write(path, res)?;
@@ -90,5 +87,5 @@ pub async fn get_track_cover(url: String) -> Result<Vec<u8>, reqwest::Error> {
     let client = reqwest::Client::new();
     let url = url.replace("large", "t500x500");
     let res = client.get(url).send().await?.bytes().await?;
-    Ok(res.iter().map(|b| *b).collect())
+    Ok(res.iter().copied().collect())
 }

@@ -72,7 +72,7 @@ pub struct MetadataField {
 impl Display for MetadataField {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.label)?;
-        if self.value.len() > 0 {
+        if !self.value.is_empty() {
             write!(f, ": {}", self.value)?;
         }
 

@@ -2,28 +2,20 @@ use std::fs;
 
 use crate::{
     get_filepath,
-    types::{FieldLabel, Metadata, MetadataField, TrackInfo},
+    types::{DownloadError, FieldLabel, FromResponse, Metadata, MetadataField, TrackInfo},
 };
-use thiserror::Error;
 
 const CLIENT_ID: &str = "bX15WAb1KO8PbF0ZxzrtUNTgliPQqV55";
 const TRACK_INFO_URL: &str = "https://api-v2.soundcloud.com/resolve";
 
-#[derive(Error, Debug)]
-pub enum DownloadError {
-    #[error("network error:\n{0}")]
-    Network(#[from] reqwest::Error),
-    #[error("could not write to file:\n{0}")]
-    File(#[from] std::io::Error),
-}
-
-async fn get_track_info(url: String) -> Result<TrackInfo, reqwest::Error> {
+async fn get_track_info(url: String) -> Result<TrackInfo, DownloadError> {
     let client = reqwest::Client::new();
     let res: TrackInfo = client
         .get(TRACK_INFO_URL)
         .query(&[("url", url.as_str()), ("client_id", CLIENT_ID)])
         .send()
-        .await?
+        .await
+        .from_response()?
         .json()
         .await?;
 
@@ -31,15 +23,8 @@ async fn get_track_info(url: String) -> Result<TrackInfo, reqwest::Error> {
 }
 
 pub async fn download_track(url: String) -> Result<Metadata, DownloadError> {
-    let track_info = match get_track_info(url).await {
-        Ok(track_info) => track_info,
-        Err(err) => return Err(DownloadError::Network(err)),
-    };
-
-    let album_cover = match get_track_cover(track_info.artwork_url).await {
-        Ok(cover) => cover,
-        Err(err) => return Err(DownloadError::Network(err)),
-    };
+    let track_info = get_track_info(url).await?;
+    let album_cover = get_track_cover(track_info.artwork_url).await?;
 
     let metadata = Metadata {
         title: MetadataField {
@@ -72,7 +57,8 @@ pub async fn download_track(url: String) -> Result<Metadata, DownloadError> {
         .get(&track_info.media.transcodings[1].url)
         .query(&[("client_id", CLIENT_ID)])
         .send()
-        .await?
+        .await
+        .from_response()?
         .json()
         .await?;
 

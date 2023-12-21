@@ -2,11 +2,12 @@ use std::{path::PathBuf, sync::OnceLock, time::Duration};
 
 use clap::Parser;
 use directories::UserDirs;
+use human_panic::setup_panic;
 use id3::TagLike;
 use indicatif::ProgressBar;
 use prompt::{prompt_dir, prompt_field, prompt_metadata, prompt_url};
-use soundcloud::{download_track, DownloadError};
-use types::{FieldLabel, MetadataField};
+use soundcloud::download_track;
+use types::{DownloadError, FieldLabel, MetadataField};
 
 mod prompt;
 mod soundcloud;
@@ -45,14 +46,14 @@ struct Args {
     use_default_metadata: bool,
 }
 
-static FILENAME: OnceLock<String> = OnceLock::new();
+static FILENAME: OnceLock<PathBuf> = OnceLock::new();
 static FILEPATH: OnceLock<PathBuf> = OnceLock::new();
 
-pub fn get_filename() -> String {
+pub fn get_filename() -> PathBuf {
     FILENAME
         .get()
-        .unwrap_or(&"soundcloud.mp3".to_string())
-        .to_string()
+        .unwrap_or(&PathBuf::from("soundcloud.mp3"))
+        .to_owned()
 }
 
 pub fn get_filepath() -> PathBuf {
@@ -69,24 +70,29 @@ fn get_default_dir() -> PathBuf {
 }
 
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
+#[termination::display]
+async fn main() -> Result<(), String> {
+    setup_panic!();
     let args = Args::parse();
 
     if let Some(dir) = args.download_directory {
         FILEPATH.get_or_init(|| dir);
     } else {
-        let dir = prompt_dir(get_default_dir().to_string_lossy().to_string())?;
+        let dir = prompt_dir(get_default_dir().to_string_lossy().to_string())
+            .map_err(|e| e.to_string())?;
         FILEPATH.get_or_init(|| dir);
     }
 
     let url = if let Some(url) = args.url {
         url
     } else {
-        prompt_url()?
+        prompt_url().map_err(|e| e.to_string())?
     };
 
-    let default_metadata = download(url).await?;
-    FILENAME.get_or_init(|| format!("{}.mp3", &default_metadata.title.value.replace('/', "")));
+    let default_metadata = download(url).await.map_err(|e| e.to_string())?;
+    FILENAME.get_or_init(|| {
+        PathBuf::from(&default_metadata.title.value.replace('/', "")).with_extension("mp3")
+    });
 
     let mut default_fields: Vec<MetadataField> = Vec::new();
     let mut param_fields: Vec<MetadataField> = Vec::new();
@@ -140,7 +146,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     let tag = create_base_tag(&default_fields, &param_fields);
-    apply_metadata(default_fields, tag)?;
+    apply_metadata(default_fields, tag).map_err(|e| e.to_string())?;
 
     let mut location = get_filepath();
     location.push(get_filename());

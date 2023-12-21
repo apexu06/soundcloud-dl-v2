@@ -10,10 +10,12 @@ clap = { version = "4.4.11", features = ["derive"] }
 console = "0.15.7"
 dialoguer = "0.11.0"
 directories = "5.0.1"
+human-panic = "1.2.2"
 id3 = "1.10.0"
 indicatif = "0.17.7"
 regex = "1.10.2"
 reqwest = { version = "0.11.22", features = ["json"] }
 serde = { version = "1.0.193", features = ["derive"] }
+termination = "0.1.2"
 thiserror = "1.0.50"
 tokio = { version = "1.35.0", features = ["full"] }

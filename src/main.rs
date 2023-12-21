@@ -6,6 +6,7 @@ use human_panic::setup_panic;
 use id3::TagLike;
 use indicatif::ProgressBar;
 use prompt::{prompt_dir, prompt_field, prompt_metadata, prompt_url};
+use regex::Regex;
 use soundcloud::download_track;
 use types::{DownloadError, FieldLabel, MetadataField};
 
@@ -75,6 +76,16 @@ async fn main() -> Result<(), String> {
     setup_panic!();
     let args = Args::parse();
 
+    let url = if let Some(url) = args.url {
+        let re = Regex::new("https://soundcloud.com/.*/.*").expect("invalid regex");
+        if !re.is_match(&url) {
+            return Err("Invalid URL".to_string());
+        }
+        url
+    } else {
+        prompt_url().map_err(|e| e.to_string())?
+    };
+
     if let Some(dir) = args.download_directory {
         FILEPATH.get_or_init(|| dir);
     } else {
@@ -82,12 +93,6 @@ async fn main() -> Result<(), String> {
             .map_err(|e| e.to_string())?;
         FILEPATH.get_or_init(|| dir);
     }
-
-    let url = if let Some(url) = args.url {
-        url
-    } else {
-        prompt_url().map_err(|e| e.to_string())?
-    };
 
     let default_metadata = download(url).await.map_err(|e| e.to_string())?;
     FILENAME.get_or_init(|| {

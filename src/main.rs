@@ -1,18 +1,16 @@
 use std::{path::PathBuf, sync::OnceLock, time::Duration};
 
 use clap::Parser;
-use dialoguer::{theme::ColorfulTheme, Input, MultiSelect};
 use directories::UserDirs;
 use id3::TagLike;
 use indicatif::ProgressBar;
-use regex::Regex;
+use prompt::{prompt_dir, prompt_field, prompt_metadata, prompt_url};
 use soundcloud::{download_track, DownloadError};
 use types::{FieldLabel, MetadataField};
 
+mod prompt;
 mod soundcloud;
 mod types;
-
-static FILENAME: OnceLock<String> = OnceLock::new();
 
 /// cli tool to download soundcloud tracks
 #[derive(Parser, Debug)]
@@ -47,6 +45,20 @@ struct Args {
     use_default_metadata: bool,
 }
 
+static FILENAME: OnceLock<String> = OnceLock::new();
+static FILEPATH: OnceLock<PathBuf> = OnceLock::new();
+
+pub fn get_filename() -> String {
+    FILENAME
+        .get()
+        .unwrap_or(&"soundcloud.mp3".to_string())
+        .to_string()
+}
+
+pub fn get_filepath() -> PathBuf {
+    FILEPATH.get().unwrap_or(&get_default_dir()).to_path_buf()
+}
+
 fn get_default_dir() -> PathBuf {
     let working_dir = std::env::current_dir().unwrap_or(PathBuf::new());
     if let Some(dir) = UserDirs::new() {
@@ -61,9 +73,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = Args::parse();
 
     if let Some(dir) = args.download_directory {
-        std::env::set_current_dir(dir)?;
+        FILEPATH.get_or_init(|| dir);
     } else {
-        std::env::set_current_dir(get_default_dir())?;
+        let dir = prompt_dir(get_default_dir().to_string_lossy().to_string())?;
+        FILEPATH.get_or_init(|| dir);
     }
 
     let url = if let Some(url) = args.url {
@@ -129,8 +142,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let tag = create_base_tag(&default_fields, &param_fields);
     apply_metadata(default_fields, tag)?;
 
-    let mut location = std::env::current_dir()?;
-    location.push(FILENAME.get().unwrap_or(&"soundcloud.mp3".to_string()));
+    let mut location = get_filepath();
+    location.push(get_filename());
     println!("finished: {}", location.display());
 
     Ok(())
@@ -178,47 +191,11 @@ fn apply_metadata(
         }
     }
 
-    let mut path = std::env::current_dir()?;
-    path.push(FILENAME.get().unwrap_or(&"soundcloud.mp3".to_string()));
+    let mut path = get_filepath();
+    path.push(get_filename());
 
     tag.write_to_path(path, id3::Version::Id3v24)?;
     Ok(())
-}
-
-fn prompt_url() -> Result<String, dialoguer::Error> {
-    let re = Regex::new("https://soundcloud.com/.*/.*").expect("invalid regex");
-
-    let url = Input::with_theme(&ColorfulTheme::default())
-        .with_prompt("enter SoundCloud URL")
-        .validate_with(|input: &String| -> Result<(), &str> {
-            if re.is_match(input) {
-                Ok(())
-            } else {
-                Err("Invalid URL")
-            }
-        })
-        .interact_text()?;
-
-    Ok(url)
-}
-
-fn prompt_metadata(items: &[MetadataField]) -> Result<Vec<usize>, dialoguer::Error> {
-    let selection = MultiSelect::with_theme(&ColorfulTheme::default())
-        .with_prompt("choose which fields you want to change\n  (space: select / enter: continue):")
-        .items(items)
-        .interact()?;
-
-    Ok(selection)
-}
-
-fn prompt_field(field: &MetadataField) -> Result<String, dialoguer::Error> {
-    let updated: String = Input::with_theme(&ColorfulTheme::default())
-        .with_prompt(format!("new {}", field.label))
-        .show_default(false)
-        .default(field.value.clone())
-        .interact_text()?;
-
-    Ok(updated)
 }
 
 async fn download(url: String) -> Result<types::Metadata, DownloadError> {

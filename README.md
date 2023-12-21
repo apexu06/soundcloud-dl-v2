@@ -1,12 +1,11 @@
 # soundcloud-dl-v2
-A cli tool to download songs from SoundCloud and apply metadata to them. Can be used by either entering
+A cli tool written in rust to download songs from SoundCloud and apply metadata to them. Can be used by either entering
 the input prompt or using cli options or both, whatever you prefer.
 
 
 ## features
 - download any song from soundcloud (including those locked behind Go+) as mp3 files
-- choose download location
-    - prints download location once finished
+- choose download location per download
 - apply metadata to downloaded songs (customizable)
     - song title
     - artist name
@@ -25,7 +24,7 @@ $ scdl
 ```
 $ scdl --url https://www.soundcloud.com/user/song --artist shrek
 ```
-This will enter prompt your for input, however it will skip the options to input a url and change the artist.
+This will prompt your for input, however it will skip the options to input a url and change the artist.
 
 ### use default metadata and url
 ```

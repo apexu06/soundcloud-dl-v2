@@ -95,9 +95,6 @@ async fn main() -> Result<(), String> {
     }
 
     let default_metadata = download(url).await.map_err(|e| e.to_string())?;
-    FILENAME.get_or_init(|| {
-        PathBuf::from(&default_metadata.title.value.replace('/', "")).with_extension("mp3")
-    });
 
     let mut default_fields: Vec<MetadataField> = Vec::new();
     let mut param_fields: Vec<MetadataField> = Vec::new();

@@ -1,12 +1,15 @@
-use std::fs;
+use std::{fs, path::PathBuf};
 
 use crate::{
-    get_filepath,
+    get_filename, get_filepath,
     types::{DownloadError, FieldLabel, FromResponse, Metadata, MetadataField, TrackInfo},
+    FILENAME,
 };
 
 const CLIENT_ID: &str = "bX15WAb1KO8PbF0ZxzrtUNTgliPQqV55";
 const TRACK_INFO_URL: &str = "https://api-v2.soundcloud.com/resolve";
+
+const INVALID_FILENAME_SYMBOLS: [char; 9] = ['/', '\\', ':', '*', '?', '"', '<', '>', '|'];
 
 async fn get_track_info(url: String) -> Result<TrackInfo, DownloadError> {
     let client = reqwest::Client::new();
@@ -66,7 +69,18 @@ pub async fn download_track(url: String) -> Result<Metadata, DownloadError> {
     let res = client.get(mp3_url).send().await?.bytes().await?;
 
     let mut path = get_filepath();
-    path.push(format!("{}.mp3", metadata.title.value.replace('/', "")));
+
+    FILENAME.get_or_init(|| {
+        let mut title = String::new();
+        INVALID_FILENAME_SYMBOLS.iter().for_each(|symbol| {
+            title = metadata.title.value.replace(" ", "_");
+            title = title.replace(*symbol, "");
+        });
+
+        PathBuf::from(title).with_extension("mp3")
+    });
+
+    path.push(get_filename());
 
     fs::write(path, res)?;
     Ok(metadata)

@@ -2,6 +2,7 @@
 A cli tool written in rust to download songs from SoundCloud and apply metadata to them. Can be used by either entering
 the input prompt or using cli options or both, whatever you prefer.
 
+https://github.com/apexu06/soundcloud-dl-v2/assets/106917697/929da40d-e3cd-43d3-b653-7e539f69ebdd
 
 ## features
 - download any song from soundcloud (including those locked behind Go+) as mp3 files

@@ -3,7 +3,7 @@ use std::{path::PathBuf, sync::OnceLock, time::Duration};
 use clap::Parser;
 use directories::UserDirs;
 use human_panic::setup_panic;
-use id3::TagLike;
+use id3::{frame, TagLike};
 use indicatif::ProgressBar;
 use prompt::{prompt_dir, prompt_field, prompt_metadata, prompt_url};
 use regex::Regex;
@@ -147,7 +147,14 @@ async fn main() -> Result<(), String> {
         });
     };
 
-    let tag = create_base_tag(&default_fields, &param_fields);
+    let mut tag = create_base_tag(&default_fields, &param_fields);
+
+    tag.add_frame(frame::Picture {
+        mime_type: "image/jpeg".to_string(),
+        picture_type: frame::PictureType::CoverFront,
+        description: "Cover".to_string(),
+        data: default_metadata.album_art,
+    });
     apply_metadata(default_fields, tag).map_err(|e| e.to_string())?;
 
     let mut location = get_filepath();

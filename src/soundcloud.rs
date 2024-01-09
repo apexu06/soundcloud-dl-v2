@@ -71,9 +71,8 @@ pub async fn download_track(url: String) -> Result<Metadata, DownloadError> {
     let mut path = get_filepath();
 
     FILENAME.get_or_init(|| {
-        let mut title = String::new();
+        let mut title = metadata.title.value.replace(" ", "_");
         INVALID_FILENAME_SYMBOLS.iter().for_each(|symbol| {
-            title = metadata.title.value.replace(" ", "_");
             title = title.replace(*symbol, "");
         });
 

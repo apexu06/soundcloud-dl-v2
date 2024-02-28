@@ -6,7 +6,7 @@ use crate::{
     FILENAME,
 };
 
-const CLIENT_ID: &str = "bX15WAb1KO8PbF0ZxzrtUNTgliPQqV55";
+const CLIENT_ID: &str = "tPycpzX7dXV3LN9SC9RpDUI9s4lKl9cc";
 const TRACK_INFO_URL: &str = "https://api-v2.soundcloud.com/resolve";
 
 const INVALID_FILENAME_SYMBOLS: [char; 9] = ['/', '\\', ':', '*', '?', '"', '<', '>', '|'];
